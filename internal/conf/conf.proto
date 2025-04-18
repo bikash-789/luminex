@@ -1,0 +1,42 @@
+syntax = "proto3";
+
+package conf;
+
+option go_package = "github-insights-dashboard/internal/conf;conf";
+
+message Bootstrap {
+  Server server = 1;
+  Data data = 2;
+  Github github = 3;
+}
+
+message Server {
+  message HTTP {
+    string network = 1;
+    string addr = 2;
+  }
+  message GRPC {
+    string network = 1;
+    string addr = 2;
+  }
+  HTTP http = 1;
+  GRPC grpc = 2;
+}
+
+message Data {
+  message Database {
+    string driver = 1;
+    string source = 2;
+  }
+  message Redis {
+    string addr = 1;
+    string password = 2;
+    int32 db = 3;
+  }
+  Database database = 1;
+  Redis redis = 2;
+}
+
+message Github {
+  string token = 1;
+} 
