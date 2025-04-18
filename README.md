@@ -1,4 +1,4 @@
-# GitHub Insights Dashboard Backend
+# Luminex
 
 Backend service for the GitHub Insights Dashboard project.
 
