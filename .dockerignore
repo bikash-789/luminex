@@ -1,0 +1,34 @@
+# Git
+.git
+.gitignore
+
+# Docker
+Dockerfile
+.dockerignore
+
+# Binaries
+bin/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Output of the go coverage tool
+*.out
+
+# Build files
+**/build
+**/dist
+
+# IDE specific files
+.idea/
+.vscode/
+.DS_Store
+
+# Environment variables
+.env
+.env.*
+
+# Don't exclude config files since we need them
+# !configs/ 

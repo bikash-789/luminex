@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"github.com/go-kratos/kratos/v2/log"
+	"gopkg.in/yaml.v3"
 )
 
 func LoadConfig(configPath string, logger log.Logger) (*Bootstrap, error) {
@@ -31,7 +32,7 @@ func LoadConfig(configPath string, logger log.Logger) (*Bootstrap, error) {
 	
 	
 	var bootstrap Bootstrap
-	if err := json.Unmarshal(data, &bootstrap); err != nil {
+	if err := yaml.Unmarshal(data, &bootstrap); err != nil {
 		helper.Errorf("Failed to parse configuration: %v", err)
 		return nil, err
 	}

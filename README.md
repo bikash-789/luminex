@@ -7,16 +7,20 @@ Backend service for the GitHub Insights Dashboard project.
 The application can be configured using the following approaches:
 
 ### Main Configuration
+
 The main configuration is stored in `configs/config.yaml`. This file contains general settings for the application such as server ports, database connection details, and other non-sensitive configuration.
 
 ### Secrets Management
+
 The application uses a modular secrets management system where each type of secret is stored in its own file under the `configs/secrets/` directory. This provides better separation and security for different types of credentials.
 
 Secrets are loaded in the following order:
+
 1. From individual JSON files in the `configs/secrets/` directory (primary)
 2. From environment variables (fallback)
 
 #### Secret Files Structure
+
 Each type of secret has its own JSON file:
 
 - `configs/secrets/github.json` - GitHub credentials
@@ -24,6 +28,7 @@ Each type of secret has its own JSON file:
 - `configs/secrets/api_keys.json` - Various API keys
 
 Example GitHub secrets file (`github.json`):
+
 ```json
 {
   "token": "your_github_token_here"
@@ -31,6 +36,7 @@ Example GitHub secrets file (`github.json`):
 ```
 
 Example Database secrets file (`database.json`):
+
 ```json
 {
   "username": "database_user",
@@ -40,6 +46,7 @@ Example Database secrets file (`database.json`):
 ```
 
 Example API keys file (`api_keys.json`):
+
 ```json
 {
   "stripe": "sk_test_sample_key",
@@ -52,6 +59,7 @@ Example API keys file (`api_keys.json`):
 ```
 
 #### Accessing Secrets in Code
+
 Secrets can be accessed using namespace (filename without .json) and key:
 
 ```go
@@ -63,6 +71,7 @@ mailchimpKey := secretsManager.GetNestedStringWithEnvFallback("api_keys", "third
 ```
 
 #### Security Best Practices
+
 - Add the entire `configs/secrets/` directory to your `.gitignore` to prevent committing secrets to version control
 - For production deployments, use environment variables or a secure secrets management service
 - Limit file permissions on the secrets files to only the necessary users/processes
@@ -76,6 +85,52 @@ go run cmd/server/main.go
 # Using environment variables (fallback)
 export GITHUB_TOKEN=your_token_here
 go run cmd/server/main.go
+```
+
+## Docker Support
+
+The application can be containerized using Docker:
+
+```bash
+# Build the Docker image
+docker build -t luminex-service:latest .
+
+# Run the container with environment variables
+docker run -p 8000:8000 -p 9000:9000 -e GITHUB_TOKEN=your_token_here luminex-service:latest
+
+# Or use a local config directory
+docker run -p 8000:8000 -p 9000:9000 -v $(pwd)/configs:/app/data/conf luminex-service:latest
+```
+
+### Docker Compose (Optional)
+
+You can also use Docker Compose for easier deployment:
+
+```yaml
+version: '3'
+services:
+  luminex-service:
+    build:
+      context: .
+    ports:
+      - "8000:8000"
+      - "9000:9000"
+    environment:
+      - GITHUB_TOKEN=${GITHUB_TOKEN:-}
+    volumes:
+      - ./configs:/app/data/conf
+      - ./logs:/var/log/luminex
+    restart: unless-stopped
+```
+
+Save this as `docker-compose.yml` and run with:
+
+```bash
+# Set the GitHub token if needed
+export GITHUB_TOKEN=your_github_api_token
+
+# Run with Docker Compose
+docker-compose up
 ```
 
 ## API Endpoints
@@ -150,4 +205,5 @@ make api
 
 ```bash
 make wire
-``` 
+```
+
