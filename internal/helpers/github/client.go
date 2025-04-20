@@ -3,31 +3,34 @@ package github
 import (
 	"context"
 	"fmt"
-	"time"
-
+	"github.com/bikash-789/comm-protos/luminex/v1/request"
+	"github.com/bikash-789/comm-protos/luminex/v1/response"
 	"github.com/google/go-github/v50/github"
 	"golang.org/x/oauth2"
-	"github-insights-dashboard/models"
+	"luminex-service/internal/interfaces/entity"
+	"time"
 )
 
-type GitHubClient struct {
+type GithubClient struct {
 	client *github.Client
 	ctx    context.Context
 }
 
-func NewGitHubClient(token string) *GitHubClient {
+func NewGithubClient(config entity.GithubConfig) *GithubClient {
 	ctx := context.Background()
-	ts := oauth2.StaticTokenSource(&oauth2.Token{AccessToken: token})
+	ts := oauth2.StaticTokenSource(&oauth2.Token{AccessToken: config.Token})
 	tc := oauth2.NewClient(ctx, ts)
 
-	return &GitHubClient{
+	return &GithubClient{
 		client: github.NewClient(tc),
 		ctx:    ctx,
 	}
 }
 
-func (g *GitHubClient) GetPRMetrics(owner, repo string) (*models.PRStats, error) {
+func (g *GithubClient) GetPRMetrics(req *request.RepositoryRequest) (*response.PRMetricsResponse, error) {
 	opts := &github.PullRequestListOptions{State: "all", ListOptions: github.ListOptions{PerPage: 100}}
+	owner := req.Owner
+	repo := req.Repo
 	prs, _, err := g.client.PullRequests.List(g.ctx, owner, repo, opts)
 	if err != nil {
 		return nil, err
@@ -59,108 +62,109 @@ func (g *GitHubClient) GetPRMetrics(owner, repo string) (*models.PRStats, error)
 		avg = (totalMergeTime / time.Duration(mergedCount)).String()
 	}
 
-	return &models.PRStats{
+	return &response.PRMetricsResponse{
 		AvgMergeTime: avg,
-		OpenPRs:      openCount,
-		MergedLast7:  mergedLast7Days,
+		OpenPrs:      int32(openCount),
+		MergedLast_7: int32(mergedLast7Days),
 	}, nil
 }
 
-func (g *GitHubClient) GetMonthlyStats(owner, repo string) (*models.MonthlyStats, error) {
-	monthlyData := make([]models.MonthData, 12)
+func (g *GithubClient) GetMonthlyStats(req *request.RepositoryRequest) (*response.MonthlyStatsResponse, error) {
+	owner := req.Owner
+	repo := req.Repo
+	data := make([]*response.MonthData, 12)
 	currentMonth := time.Now()
-	
+
 	for i := 0; i < 12; i++ {
 		monthTime := currentMonth.AddDate(0, -i, 0)
-		monthlyData[11-i] = models.MonthData{
+		data[11-i] = &response.MonthData{
 			Month: monthTime.Format("Jan 2006"),
 		}
 	}
-	
+
 	prOpts := &github.PullRequestListOptions{
-		State: "all",
+		State:       "all",
 		ListOptions: github.ListOptions{PerPage: 100},
 	}
 	prs, _, err := g.client.PullRequests.List(g.ctx, owner, repo, prOpts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch PRs: %w", err)
 	}
-	
+
 	for _, pr := range prs {
 		if pr.CreatedAt == nil {
 			continue
 		}
-		
+
 		prCreatedTime := pr.CreatedAt.Time
-		
-		for i, data := range monthlyData {
-			monthTime, _ := time.Parse("Jan 2006", data.Month)
-			
+
+		for i, item := range data {
+			monthTime, _ := time.Parse("Jan 2006", item.Month)
+
 			if prCreatedTime.Year() == monthTime.Year() && prCreatedTime.Month() == monthTime.Month() {
 				if pr.State != nil && *pr.State == "open" {
-					monthlyData[i].OpenPRs++
+					data[i].OpenPrs++
 				}
-				
+
 				if pr.MergedAt != nil {
-					monthlyData[i].MergedPRs++
+					data[i].MergedPrs++
 				}
-				
+
 				break
 			}
 		}
 	}
-	
+
 	issueOpts := &github.IssueListByRepoOptions{
-		State: "all",
+		State:       "all",
 		ListOptions: github.ListOptions{PerPage: 100},
 	}
 	issues, _, err := g.client.Issues.ListByRepo(g.ctx, owner, repo, issueOpts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch issues: %w", err)
 	}
-	
+
 	for _, issue := range issues {
 		if issue.PullRequestLinks != nil || issue.CreatedAt == nil {
 			continue
 		}
-		
+
 		issueCreatedTime := issue.CreatedAt.Time
-		
-		for i, data := range monthlyData {
-			monthTime, _ := time.Parse("Jan 2006", data.Month)
-			
+
+		for i, item := range data {
+			monthTime, _ := time.Parse("Jan 2006", item.Month)
+
 			if issueCreatedTime.Year() == monthTime.Year() && issueCreatedTime.Month() == monthTime.Month() {
-				monthlyData[i].Issues++
+				data[i].Issues++
 				break
 			}
 		}
 	}
-	
-	return &models.MonthlyStats{Data: monthlyData}, nil
+
+	return &response.MonthlyStatsResponse{Data: data}, nil
 }
 
-func (g *GitHubClient) GetRepoStats(owner, repo string) (*models.RepoStats, error) {
+func (g *GithubClient) GetRepoStats(req *request.RepositoryRequest) (*response.RepoStatsResponse, error) {
+	owner := req.Owner
+	repo := req.Repo
 	repository, _, err := g.client.Repositories.Get(g.ctx, owner, repo)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch repository data: %w", err)
 	}
 
-	stats := &models.RepoStats{
-		Stars:       repository.GetStargazersCount(),
-		Forks:       repository.GetForksCount(),
-		Watchers:    repository.GetWatchersCount(),
-		Size:        repository.GetSize(),
+	return &response.RepoStatsResponse{
+		Stars:       int32(repository.GetStargazersCount()),
+		Forks:       int32(repository.GetForksCount()),
+		Watchers:    int32(repository.GetWatchersCount()),
+		SizeKb:      int32(repository.GetSize()),
+		LastUpdated: repository.UpdatedAt.Format("2006-01-02T15:04:05Z"),
 		Language:    repository.GetLanguage(),
-	}
-
-	if repository.UpdatedAt != nil {
-		stats.LastUpdated = repository.UpdatedAt.Format("2006-01-02T15:04:05Z")
-	}
-
-	return stats, nil
+	}, nil
 }
 
-func (g *GitHubClient) GetContributorStats(owner, repo string) (*models.ContributorStats, error) {
+func (g *GithubClient) GetContributorStats(req *request.RepositoryRequest) (*response.ContributorStatsResponse, error) {
+	owner := req.Owner
+	repo := req.Repo
 	contributors, _, err := g.client.Repositories.ListContributors(g.ctx, owner, repo, &github.ListContributorsOptions{
 		ListOptions: github.ListOptions{PerPage: 100},
 	})
@@ -168,158 +172,165 @@ func (g *GitHubClient) GetContributorStats(owner, repo string) (*models.Contribu
 		return nil, fmt.Errorf("failed to fetch contributors: %w", err)
 	}
 
-	stats := &models.ContributorStats{
-		TotalContributors: len(contributors),
-		TopContributors:   make([]models.ContributorData, 0),
+	result := &response.ContributorStatsResponse{
+		TotalContributors: int32(len(contributors)),
+		TopContributors:   make([]*response.ContributorData, 0),
 	}
 
 	limit := 5
 	if len(contributors) < limit {
 		limit = len(contributors)
 	}
-	
+
 	for i := 0; i < limit; i++ {
 		contributor := contributors[i]
-		stats.TopContributors = append(stats.TopContributors, models.ContributorData{
+		result.TopContributors = append(result.TopContributors, &response.ContributorData{
 			Username:      contributor.GetLogin(),
-			Contributions: contributor.GetContributions(),
-			AvatarURL:     contributor.GetAvatarURL(),
+			Contributions: int32(contributor.GetContributions()),
+			AvatarUrl:     contributor.GetAvatarURL(),
 		})
 	}
 
 	thirtyDaysAgo := time.Now().AddDate(0, 0, -30)
 	commitOpts := &github.CommitsListOptions{
-		Since: thirtyDaysAgo,
+		Since:       thirtyDaysAgo,
 		ListOptions: github.ListOptions{PerPage: 100},
 	}
-	
+
 	commits, _, err := g.client.Repositories.ListCommits(g.ctx, owner, repo, commitOpts)
 	if err != nil {
-		return stats, nil
+		return result, nil
 	}
-	
-	stats.CommitsLast30Days = len(commits)
-	stats.AvgCommitsPerDay = float64(len(commits)) / 30.0
 
-	return stats, nil
+	result.CommitsLast_30Days = int32(len(commits))
+	result.AvgCommitsPerDay = float32(float64(len(commits)) / 30.0)
+
+	return result, nil
 }
 
-func (g *GitHubClient) GetIssueStats(owner, repo string) (*models.IssueStats, error) {
+func (g *GithubClient) GetIssueStats(req *request.RepositoryRequest) (*response.IssueStatsResponse, error) {
+	owner := req.Owner
+	repo := req.Repo
 	issueOpts := &github.IssueListByRepoOptions{
-		State: "all",
+		State:       "all",
 		ListOptions: github.ListOptions{PerPage: 100},
 	}
-	
+
 	issues, _, err := g.client.Issues.ListByRepo(g.ctx, owner, repo, issueOpts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch issues: %w", err)
 	}
-	
-	stats := &models.IssueStats{}
+
 	var openIssues, closedIssues int
 	var totalResolutionTime time.Duration
 	var resolutionCount int
 	var oldestOpenIssue *github.Issue
 	var issuesLast30Days int
-	
+
 	thirtyDaysAgo := time.Now().AddDate(0, 0, -30)
-	
+
 	for _, issue := range issues {
 		if issue.PullRequestLinks != nil {
 			continue
 		}
-		
+
 		if issue.GetState() == "open" {
 			openIssues++
-			
+
 			if oldestOpenIssue == nil || issue.CreatedAt.Time.Before(oldestOpenIssue.CreatedAt.Time) {
 				oldestOpenIssue = issue
 			}
 		} else {
 			closedIssues++
-			
+
 			if issue.CreatedAt != nil && issue.ClosedAt != nil {
 				resolutionTime := issue.ClosedAt.Time.Sub(issue.CreatedAt.Time)
 				totalResolutionTime += resolutionTime
 				resolutionCount++
 			}
 		}
-		
+
 		if issue.CreatedAt != nil && issue.CreatedAt.Time.After(thirtyDaysAgo) {
 			issuesLast30Days++
 		}
 	}
-	
-	stats.OpenIssues = openIssues
-	stats.ClosedIssues = closedIssues
-	stats.IssuesLast30Days = issuesLast30Days
-	
+
+	result := &response.IssueStatsResponse{
+		OpenIssues:        int32(openIssues),
+		ClosedIssues:      int32(closedIssues),
+		IssuesLast_30Days: int32(issuesLast30Days),
+	}
+
 	if resolutionCount > 0 {
 		avgResolutionTime := totalResolutionTime / time.Duration(resolutionCount)
-		stats.AvgResolutionTime = avgResolutionTime.String()
+		result.AvgResolutionTime = avgResolutionTime.String()
 	} else {
-		stats.AvgResolutionTime = "N/A"
+		result.AvgResolutionTime = "N/A"
 	}
-	
+
 	if oldestOpenIssue != nil {
-		stats.OldestOpenIssue = oldestOpenIssue.CreatedAt.Time.Format("2006-01-02")
+		result.OldestOpenIssue = oldestOpenIssue.CreatedAt.Time.Format("2006-01-02")
 	} else {
-		stats.OldestOpenIssue = "N/A"
+		result.OldestOpenIssue = "N/A"
 	}
-	
-	return stats, nil
+
+	return result, nil
 }
 
-func (g *GitHubClient) GetDetailedPRMetrics(owner, repo string) (*models.DetailedPRStats, error) {
-	basicStats, err := g.GetPRMetrics(owner, repo)
+func (g *GithubClient) GetDetailedPRMetrics(req *request.RepositoryRequest) (*response.DetailedPRStatsResponse, error) {
+	owner := req.Owner
+	repo := req.Repo
+	basicStatsResp, err := g.GetPRMetrics(req)
 	if err != nil {
 		return nil, err
 	}
-	
-	detailedStats := &models.DetailedPRStats{
-		PRStats: *basicStats,
+
+	result := &response.DetailedPRStatsResponse{
+		AvgMergeTime: basicStatsResp.AvgMergeTime,
+		OpenPrs:      basicStatsResp.OpenPrs,
+		MergedLast_7: basicStatsResp.MergedLast_7,
 	}
-	
+
 	opts := &github.PullRequestListOptions{
-		State: "all",
+		State:       "all",
 		ListOptions: github.ListOptions{PerPage: 100},
 	}
-	
+
 	prs, _, err := g.client.PullRequests.List(g.ctx, owner, repo, opts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch PRs: %w", err)
 	}
-	
+
 	var totalComments int
 	var prsWithComments int
-	
+
 	for _, pr := range prs {
 		if pr.ChangedFiles == nil {
 			continue
 		}
-		
+
 		changedFiles := *pr.ChangedFiles
 		if changedFiles < 10 {
-			detailedStats.SmallPRs++
+			result.SmallPrs++
 		} else if changedFiles <= 30 {
-			detailedStats.MediumPRs++
+			result.MediumPrs++
 		} else {
-			detailedStats.LargePRs++
+			result.LargePrs++
 		}
-		
+
 		if pr.ReviewComments != nil && *pr.ReviewComments == 0 && pr.State != nil && *pr.State == "closed" {
-			detailedStats.PRsWithoutReview++
+			result.PrsWithoutReview++
 		}
-		
+
 		if pr.Comments != nil && *pr.Comments > 0 {
 			totalComments += *pr.Comments
 			prsWithComments++
 		}
 	}
-	
+
 	if prsWithComments > 0 {
-		detailedStats.AvgComments = totalComments / prsWithComments
+		result.AvgComments = int32(totalComments / prsWithComments)
 	}
-	
-	return detailedStats, nil
-} 
+
+	return result, nil
+}

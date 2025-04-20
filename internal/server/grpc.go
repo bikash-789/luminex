@@ -1,9 +1,10 @@
 package server
 
 import (
-	v1 "github-insights-dashboard/api/github/v1"
-	"github-insights-dashboard/internal/conf"
-	"github-insights-dashboard/internal/service"
+	"luminex-service/internal/conf"
+	"luminex-service/internal/service"
+
+	v1 "github.com/bikash-789/comm-protos/luminex/v1"
 	"github.com/go-kratos/kratos/v2/log"
 	"github.com/go-kratos/kratos/v2/middleware/recovery"
 	"github.com/go-kratos/kratos/v2/transport/grpc"
@@ -24,4 +25,4 @@ func NewGRPCServer(c *conf.Bootstrap, s *service.LuminexService, logger log.Logg
 	srv := grpc.NewServer(opts...)
 	v1.RegisterLuminexServer(srv, s)
 	return srv
-} 
+}
