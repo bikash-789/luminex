@@ -14,12 +14,11 @@ import (
 	"github.com/google/wire"
 )
 
-
 func wireApp(conf *conf.Bootstrap, logger log.Logger) (*kratos.App, func(), error) {
 	panic(wire.Build(
 		server.ProviderSet,
 		data.ProviderSet,
-		biz.ProviderSet, 
+		biz.ProviderSet,
 		service.ProviderSet,
 		provideToken,
 		newApp,
@@ -29,4 +28,3 @@ func wireApp(conf *conf.Bootstrap, logger log.Logger) (*kratos.App, func(), erro
 func provideToken(conf *conf.Bootstrap) string {
 	return conf.Github.Token
 }
-

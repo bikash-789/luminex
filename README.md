@@ -64,7 +64,7 @@ Secrets can be accessed using namespace (filename without .json) and key:
 
 ```go
 // Simple key access
-githubToken := secretsManager.GetStringWithEnvFallback("github", "token", "GITHUB_TOKEN")
+githubToken := secretsManager.GetStringWithEnvFallback("entity", "token", "GITHUB_TOKEN")
 
 // Nested key access (for nested JSON objects)
 mailchimpKey := secretsManager.GetNestedStringWithEnvFallback("api_keys", "third_party.mailchimp", "MAILCHIMP_API_KEY")
@@ -80,11 +80,11 @@ mailchimpKey := secretsManager.GetNestedStringWithEnvFallback("api_keys", "third
 
 ```bash
 # With secrets files
-go run cmd/server/main.go
+go run cmd/luminex-service/main.go
 
 # Using environment variables (fallback)
 export GITHUB_TOKEN=your_token_here
-go run cmd/server/main.go
+go run cmd/luminex-service/main.go
 ```
 
 ## Docker Support
